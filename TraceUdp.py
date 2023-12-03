@@ -4,8 +4,11 @@ import time
 import requests
 
 def get_location_from_coordinates(latitude, longitude):
-    base_url = "https://nominatim.openstreetmap.org/reverse"
+    
+    if latitude == 0 and longitude == 0:
+        return "-"
 
+    base_url = "https://nominatim.openstreetmap.org/reverse"
     params = {
         'format': 'json',
         'lat': latitude,
@@ -16,16 +19,29 @@ def get_location_from_coordinates(latitude, longitude):
         response = requests.get(base_url, params=params)
         data = response.json()
 
-        if 'display_name' in data:
-            # Obtém o endereço formatado a partir dos resultados
+        formatted_address = '';
+        
+        if 'address' in data:
+            if 'road' in data['address']:
+                formatted_address += f" {data['address']['road']},"
+            if 'city' in data['address']:
+                formatted_address += f" {data['address']['city']},"
+            if 'state' in data['address']:
+                formatted_address += f" {data['address']['state']},"
+            if 'country_code' in data['address']:
+                formatted_address += f" {data['address']['country_code'].upper()},"
+
+        if formatted_address == '' and 'display_name' in data:
             formatted_address = data['display_name']
+
+        if formatted_address != '':
             return formatted_address
         else:
             return None
     except requests.exceptions.RequestException as e:
         print(f"Erro na solicitação da API: {e}")
         return None
-    
+
 def get_coordinates(ip_address):
     api_key = 'bc5123dd571bd4e41ef85b66416174ca'
     api_url = f'http://api.ipstack.com/{ip_address}?access_key={api_key}'
@@ -41,11 +57,9 @@ def get_coordinates(ip_address):
     except requests.exceptions.RequestException as e:
         print(f"Erro na solicitação da API: {e}")
         return None
-    
-def tracert(destino, max_hops=20, timeout=9):
-    port = 33434  # Porta do Traceroute (UDP)
 
-    print(port)
+def tracert(destino, max_hops=30, timeout=6):
+    port = 33434  # Porta do Traceroute (UDP)
 
     for ttl in range(1, max_hops + 1):
         ssnd = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_UDP)
@@ -63,7 +77,7 @@ def tracert(destino, max_hops=20, timeout=9):
             # Tenta receber uma resposta ICMP
             start_time = time.time()
             buffer, addr = srcv.recvfrom(1024)
-            
+
             end_time = time.time()
 
             # Calcula o tempo de ida e volta
@@ -75,16 +89,24 @@ def tracert(destino, max_hops=20, timeout=9):
             # Obtém as coordenadas geográficas associadas ao IP
             coordinates = get_coordinates(router_ip)
 
-            # Obtém a localização a partir das coordenadas
-            location = get_location_from_coordinates(coordinates[0],coordinates[1])
+            location = "-"
+
+            if coordinates is not None:
+
+                # Obtém a localização a partir das coordenadas
+                location = get_location_from_coordinates(coordinates[0],coordinates[1])
+
+            
             
             # Obtém o nome do host associado ao IP
             try:
                 router_host = socket.gethostbyaddr(router_ip)[0]
+
+                router = f"{router_host} [{router_ip}]"
             except socket.herror:
-                router_host = "N/A"
-                
-            print(f"{ttl}. {router_ip} ({router_host}) {location} {coordinates}  {rtt:.3f} ms")
+                router = router_ip;
+
+            print(f"{ttl}. {router} {location} {rtt:.3f} ms")
 
             # Se atingiu o destino, sai do loop
             if router_ip == destino:
