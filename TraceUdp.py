@@ -2,63 +2,24 @@ import socket
 import struct
 import time
 import requests
+from ip2geotools.databases.noncommercial import DbIpCity
 
-def get_location_from_coordinates(latitude, longitude):
-    
-    if latitude == 0 and longitude == 0:
-        return "-"
+def get_location(location_ip):
+    formatted_address = '';
+            
+    if location_ip.city is not None:
+        formatted_address += f" {location_ip.city},"
+    if location_ip.region is not None:
+        formatted_address += f" {location_ip.region},"
+    if location_ip.country is not None:
+        formatted_address += f" {location_ip.country},"
 
-    base_url = "https://nominatim.openstreetmap.org/reverse"
-    params = {
-        'format': 'json',
-        'lat': latitude,
-        'lon': longitude,
-    }
-
-    try:
-        response = requests.get(base_url, params=params)
-        data = response.json()
-
-        formatted_address = '';
-        
-        if 'address' in data:
-            if 'road' in data['address']:
-                formatted_address += f" {data['address']['road']},"
-            if 'city' in data['address']:
-                formatted_address += f" {data['address']['city']},"
-            if 'state' in data['address']:
-                formatted_address += f" {data['address']['state']},"
-            if 'country_code' in data['address']:
-                formatted_address += f" {data['address']['country_code'].upper()},"
-
-        if formatted_address == '' and 'display_name' in data:
-            formatted_address = data['display_name']
-
-        if formatted_address != '':
-            return formatted_address
-        else:
-            return None
-    except requests.exceptions.RequestException as e:
-        print(f"Erro na solicitação da API: {e}")
+    if formatted_address != '':
+        return formatted_address
+    else:
         return None
 
-def get_coordinates(ip_address):
-    api_key = 'bc5123dd571bd4e41ef85b66416174ca'
-    api_url = f'http://api.ipstack.com/{ip_address}?access_key={api_key}'
-
-    try:
-        response = requests.get(api_url)
-        data = response.json()
-
-        if 'latitude' in data and 'longitude' in data:
-            return data['latitude'], data['longitude']
-        else:
-            return None
-    except requests.exceptions.RequestException as e:
-        print(f"Erro na solicitação da API: {e}")
-        return None
-
-def tracert(destino, max_hops=30, timeout=6):
+def tracert(destino, max_hops=30, timeout=3):
     port = 33434  # Porta do Traceroute (UDP)
 
     for ttl in range(1, max_hops + 1):
@@ -87,16 +48,15 @@ def tracert(destino, max_hops=30, timeout=6):
             router_ip = addr[0]
 
             # Obtém as coordenadas geográficas associadas ao IP
-            coordinates = get_coordinates(router_ip)
+            location_ip = DbIpCity.get(router_ip, api_key='free')
 
             location = "-"
 
-            if coordinates is not None:
+            if location_ip is not None and location_ip.country != 'ZZ':
 
                 # Obtém a localização a partir das coordenadas
-                location = get_location_from_coordinates(coordinates[0],coordinates[1])
+                location = get_location(location_ip)
 
-            
             
             # Obtém o nome do host associado ao IP
             try:
