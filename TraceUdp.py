@@ -2,7 +2,9 @@ import socket
 import struct
 import time
 import requests
+import webbrowser
 from ip2geotools.databases.noncommercial import DbIpCity
+from urllib.parse import quote
 
 def calcula_checksum(pacote):
     # Certifique-se de que o comprimento do pacote seja um número par
@@ -50,6 +52,12 @@ def get_router(router_ip):
 
 def tracert(destino, max_hops=30, timeout=3):
     port = 33434  # Porta do Traceroute (UDP)
+
+    locations = []  # Lista para armazenar as localizações
+
+    unique_locations = set()  # Conjunto para armazenar localizações únicas
+
+    unique_locations = []  # Lista para armazenar localizações únicas
 
     for ttl in range(1, max_hops + 1):
 
@@ -132,10 +140,28 @@ def tracert(destino, max_hops=30, timeout=3):
 
         print(f"{ttl}. ({tipo_envio}) {get_router(router_ip)} {get_location(router_ip)} {rtt:.3f} ms")
 
+        # Adicione a localização à lista se ainda não estiver presente
+        if get_location(router_ip) not in unique_locations:
+            unique_locations.append(get_location(router_ip))
+
         # Se atingiu o destino, sai do loop
         if router_ip == destino:
             break
+            
+    # Abra o mapa no navegador após o traceroute
+    open_map_in_browser(unique_locations)
 
+def open_map_in_browser(unique_locations):
+    # URL base do Google Maps
+    map_url = "https://www.google.com/maps/dir/"
+
+    # Adicione cada local único à URL com um marcador
+    for location in unique_locations:
+        map_url += quote(location) + "/"
+
+    # Abra a URL no navegador padrão
+    webbrowser.open(map_url)
+    
 if __name__ == "__main__":
     destino = input("Digite o endereço IP de destino: ")
     tracert(destino)
