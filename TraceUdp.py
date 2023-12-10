@@ -4,20 +4,38 @@ import time
 import requests
 from ip2geotools.databases.noncommercial import DbIpCity
 
-def get_location(location_ip):
-    formatted_address = '';
-            
-    if location_ip.city is not None:
-        formatted_address += f" {location_ip.city},"
-    if location_ip.region is not None:
-        formatted_address += f" {location_ip.region},"
-    if location_ip.country is not None:
-        formatted_address += f" {location_ip.country},"
+def calcula_checksum(pacote):
+    # Certifique-se de que o comprimento do pacote seja um número par
+    if len(pacote) % 2 != 0:
+        pacote += b'\x00'  # Adiciona um byte nulo se necessário
 
-    if formatted_address != '':
-        return formatted_address
-    else:
-        return None
+    # Calcula o checksum
+    checksum = sum(struct.unpack('!H', pacote[i:i+2])[0] for i in range(0, len(pacote), 2))
+    checksum = (checksum >> 16) + (checksum & 0xFFFF)
+    checksum = ~checksum & 0xFFFF
+
+    return checksum
+
+def get_location(router_ip):
+
+     # Obtém as coordenadas geográficas associadas ao IP
+
+    location_ip = DbIpCity.get(router_ip, api_key='free')
+
+    if location_ip is not None and location_ip.country != 'ZZ':
+        formatted_address = '';
+            
+        if location_ip.city is not None:
+            formatted_address += f" {location_ip.city},"
+        if location_ip.region is not None:
+            formatted_address += f" {location_ip.region},"
+        if location_ip.country is not None:
+            formatted_address += f" {location_ip.country},"
+
+        if formatted_address != '':
+            return formatted_address
+    
+    return "-"
     
 def get_router(router_ip):
     try:
@@ -34,6 +52,9 @@ def tracert(destino, max_hops=30, timeout=3):
     port = 33434  # Porta do Traceroute (UDP)
 
     for ttl in range(1, max_hops + 1):
+
+        tipo_envio = "UDP"
+
         ssnd = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_UDP)
         ssnd.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
         ssnd.settimeout(timeout)
@@ -58,28 +79,15 @@ def tracert(destino, max_hops=30, timeout=3):
             # Obtém o IP do roteador
             router_ip = addr[0]
 
-            # Obtém as coordenadas geográficas associadas ao IP
-            location_ip = DbIpCity.get(router_ip, api_key='free')
-
-            location = "-"
-
-            if location_ip is not None and location_ip.country != 'ZZ':
-
-                # Obtém a localização a partir das coordenadas
-                location = get_location(location_ip)
-           
-            print(f"{ttl}. (UDP) {get_router(router_ip)} {location} {rtt:.3f} ms")
-
-            # Se atingiu o destino, sai do loop
-            if router_ip == destino:
-                break
-
         except socket.timeout:
             ssnd_icmp = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
             ssnd_icmp.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
             ssnd_icmp.settimeout(timeout)
 
             try:
+                
+                tipo_envio = "ICMP"
+
                 # Construa um pacote ICMP Echo Request (ping)
                 tipo = 8  # Echo Request
                 codigo = 0
@@ -108,21 +116,6 @@ def tracert(destino, max_hops=30, timeout=3):
                 # Obtém o IP do roteador
                 router_ip = addr[0]
 
-                # Obtém as coordenadas geográficas associadas ao IP
-                location_ip = DbIpCity.get(router_ip, api_key='free')
-
-                location = "-"
-
-                if location_ip is not None and location_ip.country != 'ZZ':
-
-                    # Obtém a localização a partir das coordenadas
-                    location = get_location(location_ip)
-
-                print(f"{ttl}. (ICMP) {get_router(router_ip)} {location} {rtt:.3f} ms")
-
-                # Se atingiu o destino, sai do loop
-                if addr[0] == destino:
-                    break
             except socket.timeout:
                 print(f"{ttl}. *")
             except socket.error as e:
@@ -137,17 +130,11 @@ def tracert(destino, max_hops=30, timeout=3):
             ssnd.close()
             srcv.close()
 
-def calcula_checksum(pacote):
-    # Certifique-se de que o comprimento do pacote seja um número par
-    if len(pacote) % 2 != 0:
-        pacote += b'\x00'  # Adiciona um byte nulo se necessário
+        print(f"{ttl}. ({tipo_envio}) {get_router(router_ip)} {get_location(router_ip)} {rtt:.3f} ms")
 
-    # Calcula o checksum
-    checksum = sum(struct.unpack('!H', pacote[i:i+2])[0] for i in range(0, len(pacote), 2))
-    checksum = (checksum >> 16) + (checksum & 0xFFFF)
-    checksum = ~checksum & 0xFFFF
-
-    return checksum
+        # Se atingiu o destino, sai do loop
+        if router_ip == destino:
+            break
 
 if __name__ == "__main__":
     destino = input("Digite o endereço IP de destino: ")
