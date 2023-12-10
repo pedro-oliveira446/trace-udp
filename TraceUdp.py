@@ -18,6 +18,17 @@ def get_location(location_ip):
         return formatted_address
     else:
         return None
+    
+def get_router(router_ip):
+    try:
+        router_host = socket.gethostbyaddr(router_ip)[0]
+
+        router = f"{router_host} [{router_ip}]"
+    except socket.herror:
+        router = router_ip;
+
+    return router;
+
 
 def tracert(destino, max_hops=30, timeout=3):
     port = 33434  # Porta do Traceroute (UDP)
@@ -56,17 +67,8 @@ def tracert(destino, max_hops=30, timeout=3):
 
                 # Obtém a localização a partir das coordenadas
                 location = get_location(location_ip)
-
-            
-            # Obtém o nome do host associado ao IP
-            try:
-                router_host = socket.gethostbyaddr(router_ip)[0]
-
-                router = f"{router_host} [{router_ip}]"
-            except socket.herror:
-                router = router_ip;
-
-            print(f"{ttl}. (UDP) {router} {location} {rtt:.3f} ms")
+           
+            print(f"{ttl}. (UDP) {get_router(router_ip)} {location} {rtt:.3f} ms")
 
             # Se atingiu o destino, sai do loop
             if router_ip == destino:
@@ -116,16 +118,7 @@ def tracert(destino, max_hops=30, timeout=3):
                     # Obtém a localização a partir das coordenadas
                     location = get_location(location_ip)
 
-                
-                # Obtém o nome do host associado ao IP
-                try:
-                    router_host = socket.gethostbyaddr(router_ip)[0]
-
-                    router = f"{router_host} [{router_ip}]"
-                except socket.herror:
-                    router = router_ip;
-
-                print(f"{ttl}. (ICMP) {router} {location} {rtt:.3f} ms")
+                print(f"{ttl}. (ICMP) {get_router(router_ip)} {location} {rtt:.3f} ms")
 
                 # Se atingiu o destino, sai do loop
                 if addr[0] == destino:
